@@ -1,0 +1,335 @@
+#!/bin/ksh
+
+#v1 check 順序 No.01
+
+#1.1  (s)
+#     設定執行頻率
+#1.1  (e)
+
+#ls_version="1.0"
+ls_version="1.1"
+
+
+. /u1/etc/chk_scripts/tmon.conf
+
+#今天日期
+#變數
+#. /u3/bin/cmon/mon2.conf
+today="$ZONE"_lock作業查詢_`date`
+##log_dir="/u3/log"
+log_dir="/u1/etc/chk_scripts/lock"
+alert_file="$log_dir/al_file.html"
+lock_file="$log_dir/lock.html"
+chk_logdir="$log_dir/basement"
+unset SQLPATH
+unset ORACLE_PATH
+#檢查ROW LOCK WAIT
+
+if [ -n "$l_sec" ]; then
+
+   l_sec=3600
+   mode_test="Y"
+
+fi
+
+if [ "$mode_test" == "Y" ] ;then
+   chk_lock_time_go="Y"
+fi
+
+if [ "$chk_lock_time_go" == "Y" ] ;then
+
+   if [ -z "$sqlpass" ];then
+   	if [ -z "$2" ];then
+   		sqlpass="du"
+   	else
+   		sqlpass=$2
+   	fi
+   fi
+   
+   if [ "$l_sec" != "" ];then
+      if [ -n "$1" ];then
+   	l_sec=$1
+      fi
+   else
+   	    echo "Usage: /u3/bin/tmon/script/chk_lock [wait_sec]"
+   	    echo "Ex   : /u3/bin/tmon/script/chk_lock 100"
+   	    exit
+   fi
+
+   sec_wait=$(
+                echo "
+                     set pagesize 0
+                     set feedback off
+                     col Username for a8
+                     col Command for a12
+                     col Machine for a14
+                     col \"OS User\" for a10
+                     col Module for a30
+                     set linesize 200 
+                     SPOOL $chk_logdir/q_lock.log
+                     SELECT *
+                     FROM
+                       ( WITH vs AS
+                       (SELECT rownum rnum,
+                         inst_id,
+                         sid,
+                         serial#,
+                         status,
+                         username,
+                         last_call_et,
+                         command,
+                         machine,
+                         osuser,
+                         module,
+                         action,
+                         resource_consumer_group,
+                         client_info,
+                         client_identifier,
+                         type,
+                         terminal,
+                         sql_id
+                       FROM gv\$session
+                       )
+                     SELECT vs.inst_id,
+                       vs.sid ,
+                       serial# serial,
+                       vs.sql_id,
+                       vs.username \"Username\",
+                       --CASE
+                       --  WHEN vs.status = 'ACTIVE'
+                       --  THEN last_call_et
+                       --  ELSE NULL
+                       --END \"Seconds in Wait\",
+                       last_call_et as \"Seconds in Wait\",
+                       DECODE(vs.command, 0,NULL, 1,'CRE TAB', 2,'INSERT', 3,'SELECT', 4,'CRE CLUSTER', 5,'ALT CLUSTER', 6,'UPDATE', 7,'DELETE', 8,'DRP CLUSTER', 9,'CRE INDEX', 10,'DROP INDEX', 11,'ALT INDEX', 12,'DROP TABLE', 13,'CRE SEQ', 14,'ALT SEQ', 15,'ALT TABLE', 16,'DROP SEQ', 17,'GRANT', 18,'REVOKE', 19,'CRE SYN', 20,'DROP SYN', 21,'CRE VIEW', 22,'DROP VIEW', 23,'VAL INDEX', 24,'CRE PROC', 25,'ALT PROC', 26,'LOCK TABLE', 28,'RENAME', 29,'COMMENT', 30,'AUDIT', 31,'NOAUDIT', 32,'CRE DBLINK', 33,'DROP DBLINK', 34,'CRE DB', 35,'ALTER DB', 36,'CRE RBS', 37,'ALT RBS', 38,'DROP RBS', 39,'CRE TBLSPC', 40,'ALT TBLSPC', 41,'DROP TBLSPC', 42,'ALT SESSION', 43,'ALT USER', 44,'COMMIT', 45,'ROLLBACK', 46,'SAVEPOINT', 47,'PL/SQL EXEC', 48,'SET XACTN', 49,'SWITCH LOG', 50,'EXPLAIN', 51,'CRE USER', 52,'CRE ROLE', 53,'DROP USER', 54,'DROP ROLE', 55,'SET ROLE', 56,'CRE SCHEMA', 57,'CRE CTLFILE', 58,'ALTER TRACING', 59,'CRE TRIGGER', 60,'ALT TRIGGER', 61,'DRP TRIGGER', 62,'ANALYZE TAB', 63,'ANALYZE IX', 64,
+                       'ANALYZE CLUS', 65,'CRE PROFILE', 66,'DRP PROFILE', 67,'ALT PROFILE', 68,'DRP PROC', 69,'DRP PROC', 70,'ALT RESOURCE', 71,'CRE SNPLOG', 72,'ALT SNPLOG', 73,'DROP SNPLOG', 74,'CREATE SNAP', 75,'ALT SNAP', 76,'DROP SNAP', 79,'ALTER ROLE', 79,'ALTER ROLE', 85,'TRUNC TAB', 86,'TRUNC CLUST', 88,'ALT VIEW', 91,'CRE FUNC', 92,'ALT FUNC', 93,'DROP FUNC', 94,'CRE PKG', 95,'ALT PKG', 96,'DROP PKG', 97,'CRE PKG BODY', 98,'ALT PKG BODY', 99,'DRP PKG BODY', TO_CHAR(vs.command)) \"Command\",
+                       vs.machine \"Machine\",
+                       vs.osuser \"OS User\",
+                       lower(vs.status) \"Status\",
+                       vs.module \"Module\"
+                     FROM vs
+                     WHERE vs.USERNAME      IS NOT NULL
+                     AND NVL(vs.osuser,'x') <> 'SYSTEM'
+                     AND vs.type            <> 'BACKGROUND'
+                     --AND vs.status           = 'ACTIVE'
+                     AND vs.module LIKE 'fglrun-bin%'
+                     ORDER BY 1,2,3
+                       ) sub1
+                     where \"Seconds in Wait\" > $l_sec
+                     ORDER BY 6 ASC;
+                     SPOOL OFF 
+                               exit
+             " | sqlplus -S "du/$sqlpass@$ZONE"
+   )
+   
+   #echo "$sec_wait"
+   #wait_max=`echo "$sec_wait"|awk '{if($6 >= '$l_sec') {print $6}}'|grep -Eo "[0-9]+"`
+   #echo "$wait_max"
+   
+   
+     wa_ev=`cat $chk_logdir/q_lock.log |awk '{print $2}'`
+     #echo "@@@"$sec_wait
+     #cat $chk_logdir/q_lock.log
+    # echo $wa_ev
+
+      pn=`cat $chk_logdir/q_lock.log | awk '{print $2}' | grep '^[[:blank:]]*[^[:blank:]]' | wc -l`
+   #echo $pn
+   echo "<table width=1000 border=1>
+   <tr>
+   <th colspan=16 style="background-color:#FFECC9">ORACLE LOCK檢查</th>
+   </tr>" > $lock_file
+   if [ -n "$wa_ev" ];then
+      #exit
+      #echo $pn
+      for (( i=1; i<="$pn"; i=i+1 ))
+      do
+         #echo $today 
+         #echo ""
+         #echo "lock作業查詢"
+         sid_n=`cat $chk_logdir/q_lock.log | awk '{print $2}' | grep '^[[:blank:]]*[^[:blank:]]' | sed -n "$i,${i}p" `
+         #echo $sid_n
+         sid_w=$(
+                  echo "
+                     set colsep _link_
+                     set trimspool on
+                     set headsep off
+                     set pagesize 0
+                     set linesize 200
+                     set long 9999
+                     col PROCESS for a15
+                     SPOOL $chk_logdir/q_lock2.log
+                     select  
+                            s.PROCESS 
+                       from 
+                            v\$process p,
+                            v\$session s
+                      where s.paddr = p.addr
+                       and s.sid = $sid_n ;
+                     SPOOL OFF 
+                     exit
+          " | sqlplus -S "du/du@$ZONE"
+         )
+         lk_ck=`cat $chk_logdir/q_lock2.log `
+         #exit
+         #echo $lk_ck
+          
+         if [ -n "$lk_ck" ];then
+         	
+         
+            #echo $today
+            #echo "=====等待LOCK作業====="
+            #echo "$sid_w"
+            #sid_p=`echo "$sid_w"|awk '{print $1}'`
+            #echo "$sid_p"
+            #exit
+            sid_user=$(
+                  echo "
+                     set colsep _link_
+                     set pagesize 0
+                     set trimspool on
+                     set headsep off
+                     set linesize 200
+                     col username for a10
+                     col machine for a15
+                     col osuser for a15
+                     SPOOL $chk_logdir/q_lock3.log
+                     SELECT 
+                            username,
+                            last_call_et,
+                            machine,
+                            osuser,
+                            module
+                          FROM gv\$session
+                       where sid = $sid_n ;
+                     SPOOL OFF 
+                     exit
+          " | sqlplus -S "du/du@$ZONE"
+         )
+            username=`cat $chk_logdir/q_lock3.log | awk -F _link_ '{print $1}'`
+            last_call=`cat $chk_logdir/q_lock3.log | awk -F _link_ '{print $2}'`
+            machine=`cat $chk_logdir/q_lock3.log | awk -F _link_ '{print $3}'`
+            osuser=`cat $chk_logdir/q_lock3.log | awk -F _link_ '{print $4}'`
+            module=`cat $chk_logdir/q_lock3.log | awk -F _link_ '{print $5}'`
+            echo "<tr><td width=100 colspan=2>DB user</td>" >> $lock_file
+            echo "<td width=100 colspan=2>等待大約秒數</td>" >> $lock_file
+            echo "<td width=100 colspan=2>hostname</td>" >> $lock_file
+            echo "<td width=100 colspan=2>帳號</td>" >> $lock_file
+            echo "<td width=100 colspan=2>執行作業方式</td>" >> $lock_file
+            echo "<td width=100 colspan=2>等待LOCK作業</td>" >> $lock_file
+            echo "<td width=100 colspan=2>等待LOCK語句</td>" >> $lock_file
+            echo "<td width=100 colspan=2>LOCK物件</td></tr> " >> $lock_file
+
+            echo "<tr><td colspan=2>$username</td>" >> $lock_file
+            echo "<td colspan=2>$last_call</td>" >> $lock_file
+            echo "<td width=100 colspan=2>$machine</td>" >> $lock_file
+            echo "<td width=100 colspan=2>$osuser</td>" >> $lock_file
+            echo "<td width=100 colspan=2>$module</td>" >> $lock_file
+            process=`ps -ef|grep -v grep|grep -v "LOCAL="|grep -w "$lk_ck"`
+            chk_process=`ps -ef|grep -v grep|grep -v "LOCAL="|grep -w "$lk_ck" |wc -l`
+            if [ -n $chk_process ];then
+               echo "<td colspan=2 width=100>$process</td>" >> $lock_file
+            else 
+               echo "<td colspan=2>沒發現</td>" >> $lock_file
+            fi
+            
+            #echo "=====等待LOCK語句====="
+            #echo "$sid_w"|awk '{$1=""; print $0}'
+            sid_s=$(
+                  echo "
+                     set trimspool on
+                     set headsep off
+                     set pagesize 0
+                     set linesize 200
+                     set long 9999
+                     SPOOL $chk_logdir/q_lock2.log
+                     select distinct t.SQL_TEXT 
+                       from gv\$session s,v\$sql t 
+                      where  s.prev_sql_id=t.sql_id
+                       and s.sid = $sid_n ;
+                     SPOOL OFF 
+                     exit
+          " | sqlplus -S "du/du@$ZONE"
+         )
+            sql=`cat $chk_logdir/q_lock2.log `
+            if [ -n "$sql" ];then
+               sql=`cat $chk_logdir/q_lock2.log `
+               echo "<td colspan=2 width=100>$sql</td>" >> $lock_file
+            else 
+               echo "<td colspan=2>沒有</td>" >> $lock_file
+            fi
+
+            lock_h=$(
+                      echo "
+                        set colsep _link_
+                        set pagesize 0
+            	        set feedback off
+                        set linesize 200
+                        col username for a14
+                        col object_name for a16
+                        SPOOL $chk_logdir/q_lock2.log
+                        SELECT 
+                            SUBSTR(dba_objects.object_name,1,16)
+                          FROM gv\$locked_object,dba_objects,gv\$session,gv\$process
+                         WHERE to_char(gv\$session.sid) = $sid_n
+                           and gv\$locked_object.object_id=dba_objects.object_id
+                           AND gv\$locked_object.SESSION_ID=gv\$session.SID
+                           AND gv\$process.addr = gv\$session.paddr 
+                           AND gv\$process.inst_id = gv\$session.inst_id
+                           AND gv\$session.type != 'BACKGROUND'
+                           AND gv\$locked_object.inst_id = gv\$session.inst_id
+                           AND gv\$locked_object.process = gv\$session.process;
+                        SPOOL OFF
+                        exit
+                                         " | sqlplus -S "du/du@$ZONE"
+            )
+            object=`cat $chk_logdir/q_lock2.log | awk '{print $1}'`
+            #cat $chk_logdir/q_lock2.log
+            if [ -n $object ];then
+                  echo "<td colspan=2>$object</td></tr> " >> $lock_file
+            else
+                  echo "<td colspan=2> 沒發現 </td></tr> " >> $lock_file
+            fi
+            #
+            #echo "=====Lock持有作業====="
+#            h_sid=`cat $chk_logdir/q_lock2.log | grep "Lock" |awk '{print $3}'`
+#            h_pid=`sqlplus -S "du/$sqlpass@$ZONE" << EOF
+#                        set pagesize 0
+#            	    set feedback off
+#                        select process from v\\$session 
+#                        where sid=$h_sid; 
+#            exit
+#EOF
+#            `
+#            process2=`ps -ef|grep -v grep|grep -v LOCAL|grep -w "$h_pid"`
+#            chk_process2=`ps -ef|grep -v grep|grep -v LOCAL|grep -w "$h_pid" | wc -l `
+#            #if [ -n $chk_process2 ];then
+#               echo "<tr><td width=100 colspan=2>LOCK持有作業</td><td colspan=3>$process2</td>" >> $lock_file
+#            #fi
+            echo "<tr><td height=10 style="background-color:#FFECC9" colspan=16></td></tr>" >> $lock_file
+         fi
+      done
+   
+      echo "</table>" >> $lock_file
+   else
+
+      echo "
+      <tr>
+      <th colspan=16 style="background-color:#FFECC9">沒發現超過 $l_sec 秒 lock table </th>
+      </tr>" >> $lock_file
+      
+      echo "</table>" >> $lock_file
+
+      
+
+   fi
+
+      if [ -f "$lock_file" ];then
+         #cat $lock_file
+         cp -p $lock_file $TEMPDIR/lock.html
+         echo "檢查鎖表超過 $l_sec 秒 完成"
+         rm -rf $log_dir/lock.html
+      fi
+   
+
+fi
+

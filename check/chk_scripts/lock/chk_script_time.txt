@@ -1,0 +1,22 @@
+
+tmon_clean_time_go :	N
+chk_aliv_time_go :	N
+chk_ps_time_go :	N
+chk_ps_2time_go :	N
+chk_mem_time_go :	N
+chk_mem_2time_go :	N
+chk_cpu_time_go :	N
+chk_du_time_go :	N
+chk_err_2time_go :	N
+chk_cron_time_go :	N
+chk_lic2_time_go :	N
+chk_lock_time_go :	N
+chk_ps_cputime_time_go :	N
+chk_psmem_time_go :	N
+chk_redosd_time_go :	N
+chk_redosw_time_go :	N
+chk_sql_time_go :	N
+chk_tbs_time_go :	N
+chk_temp_time_go :	N
+chk_ttbs_time_go :	N
+chk_undo_time_go :	N

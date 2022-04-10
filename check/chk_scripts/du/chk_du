@@ -1,0 +1,348 @@
+#!/bin/ksh
+
+#v1 check 順序 No.13
+#   check Warn
+
+#1.1  (s)
+#     設定執行頻率
+#     變數 : chk_du_time_go
+#1.1  (e)
+
+#ls_version="1.0"
+ls_version="1.1"
+
+log_dir='/u1/etc/chk_scripts/du'
+
+. /u1/etc/chk_scripts/tmon.conf
+
+unset SQLPATH
+
+
+check_log="$log_dir/basement/du.log"
+check2_log="$log_dir/basement/du_inode.log"
+check_log2="$log_dir/basement/du2.log"
+du_file="$log_dir/du.html"
+
+if [ -n "$lim" ] ; then
+
+   lim=50
+   mode_test="Y"
+else
+
+   lim=80
+   lim_warn=50  #v1 add
+
+fi
+
+
+if [ "$mode_test" == "Y" ] ;then
+   chk_du_time_go="Y"
+fi
+
+if [ "$chk_du_time_go" == "Y" ] ;then
+
+   
+   ut_use=`df -h|grep "/ut"|awk '{print $5}'|grep -Eo "[0-9]+"`
+   ut=`df -h|grep "/ut"`
+   hds=`cd /ut;du --max-depth=1 -BM|sort -g`
+   ut_max="$lim"
+   chk_date=`date`
+   df -h|grep "/ut" > $check_log
+   n=`df -h | grep "/ut"|awk '{print $5}'|grep -Eo "[0-9]+" | wc -l `
+   echo "" > $du_file
+   echo "<table width=100% border=1>" >> $du_file
+   echo "<tr><th colspan=7 style=background-color:#FFECC9> 檢查日期  $chk_date </th></tr>" >> $du_file
+   echo "</table> " >> $du_file
+   if [ -n "$ut_use" ];then
+      if [ "$ut_use" -ge "$ut_max" ];then
+      #to html
+         chk_Warn="Y"
+         echo "chk_Warn : " $chk_Warn
+         echo "<table width=800 border=1>" >> $du_file 
+         echo "<tr><th colspan=7 style=background-color:#FFECC9>=====LOG磁碟空間=====</th></tr>" >> $du_file
+         echo ""
+         i=0
+         while [ "$i" -le "$n" ];
+         do
+            if [ "$i" == 0 ] ; then
+               chk_name='Filesystem'
+               tbs_allocat='Size' 
+               tbs_free='Used'
+               tbs_use='Avail'
+               tbs_free_per='Use%'
+               tbs_use_per='Mounted on'
+               echo '<tr><td>' $chk_name '</td>' >>$du_file
+               echo '<td>' $tbs_allocat '</td>' >>$du_file
+               echo '<td>' $tbs_free '</td>' >>$du_file
+               echo '<td>' $tbs_use '</td>' >>$du_file
+               echo '<td>' $tbs_free_per '</td>' >>$du_file
+               echo '<td>' $tbs_use_per '</td>' >>$du_file
+            else
+               chk_name=`cat $check_log |awk '{if($5 >= '$lim') {print $1}}' | sed -n "${i},${i}p" `
+               tbs_allocat=`cat $check_log | grep $chk_name | awk '{print $2}'`
+               tbs_free=`cat $check_log | grep $chk_name | awk '{print $3}'`
+               tbs_use=`cat $check_log | grep $chk_name | awk '{print $4}'`
+               tbs_free_per=`cat $check_log |grep $chk_name | awk '{print $5}'`
+               tbs_use_per=`cat $check_log |grep $chk_name | awk '{print $6}'`
+               echo '<tr><td>' $chk_name '</td>' >>$du_file
+               echo '<td>' $tbs_allocat '</td>' >>$du_file
+               echo '<td>' $tbs_free '</td>' >>$du_file
+               echo '<td>' $tbs_use '</td>' >>$du_file
+               echo '<td>' $tbs_free_per '</td>' >>$du_file
+               echo '<td>' $tbs_use_per '</td>' >>$du_file
+            fi
+            i=`expr $i + 1 `
+         done
+         echo "</table>" >> $du_file
+         echo "<table width=800 border=1>" >> $du_file
+         echo "<tr><th colspan=7 style=background-color:#FFECC9>=====THE TOP 3 Folder=====</th></tr>" >> $du_file
+         echo "<tr><th colspan=7>=====Folder size =====</th></tr>" >> $du_file
+         n=`du -sh /ut/*|sort -h -r|head -n 3 | wc -l`
+         i=0
+         while [ "$i" -le "$n" ];
+         do
+            if [ "$i" == 0 ] ; then
+               chk_name='Size'
+               tbs_allocat='Name' 
+               echo '<tr><td style=background-color:#FFECC9>' $chk_name '</td>' >>$du_file
+               echo '<td style=background-color:#FFECC9>' $tbs_allocat '</td>' >>$du_file
+            else
+               chk_name=`du -sh /ut/*|sort -h -r|head -n 3 | awk '{print $1}' | sed -n "${i},${i}p" `
+               tbs_allocat=`du -sh /ut/*|sort -h -r|head -n 3 | awk '{print $2}' | sed -n "${i},${i}p"`
+               echo '<tr><td>' $chk_name '</td>' >>$du_file
+               echo '<td>' $tbs_allocat '</td>' >>$du_file
+            fi
+            i=`expr $i + 1 `
+         done
+         echo "</table>" >> $du_file
+         echo "<table width=800 border=1>" >> $du_file
+         echo "<tr><th colspan=7 style=background-color:#FFECC9>=====$TEMPDIR=====</th></tr>" >> $du_file
+         n=`du -sh $TEMPDIR/*|sort -h -r|head -n 3 | wc -l`
+         i=0
+         while [ "$i" -le "$n" ];
+         do
+            if [ "$i" == 0 ] ; then
+               chk_name='Size'
+               tbs_allocat='Name' 
+               echo '<tr><td style=background-color:#FFECC9>' $chk_name '</td>' >>$du_file
+               echo '<td style=background-color:#FFECC9>' $tbs_allocat '</td>' >>$du_file
+            else
+               chk_name=`du -sh $TEMPDIR/*|sort -h -r|head -n 3 | awk '{print $1}' | sed -n "${i},${i}p" `
+               tbs_allocat=`du -sh $TEMPDIR/*|sort -h -r|head -n 3 | awk '{print $2}' | sed -n "${i},${i}p"`
+               echo '<tr><td>' $chk_name '</td>' >>$du_file
+               echo '<td>' $tbs_allocat '</td>' >>$du_file
+            fi
+            i=`expr $i + 1 `
+         done
+         echo "<tr><th colspan=7 style=background-color:#FFECC9>=====$LOGDIR=====</th></tr>" >> $du_file
+         n=`du -sh $LOGDIR/*|sort -h -r|head -n 3 | wc -l`
+         i=0
+         while [ "$i" -le "$n" ];
+         do
+            if [ "$i" == 0 ] ; then
+               chk_name='Size'
+               tbs_allocat='Name' 
+               echo '<tr><td style=background-color:#FFECC9>' $chk_name '</td>' >>$du_file
+               echo '<td style=background-color:#FFECC9>' $tbs_allocat '</td>' >>$du_file
+            else
+               chk_name=`du -sh $LOGDIR/*|sort -h -r|head -n 3 | awk '{print $1}' | sed -n "${i},${i}p" `
+               tbs_allocat=`du -sh $LOGDIR/*|sort -h -r|head -n 3 | awk '{print $2}' | sed -n "${i},${i}p"`
+               echo '<tr><td>' $chk_name '</td>' >>$du_file
+               echo '<td>' $tbs_allocat '</td>' >>$du_file
+            fi
+            i=`expr $i + 1 `
+         done
+         echo "</table>" >> $du_file
+         
+         #top_f=`du -m /ut/*|sort -n -r | head -n 1`
+         #top_tmp=`echo ""$top_f"/tmp/*"|awk '{print $2}'`
+         #top_log=`echo ""$top_f"/log/*"|awk '{print $2}'`
+         
+         #to html
+         #du -m $top_tmp|sort -n -r | head -n 5
+         #du -m $top_log|sort -n -r | head -n 5
+         
+         #to html
+         #echo ""
+         #echo ""
+         #echo "================================================================"
+      fi
+   fi
+   
+   
+   lim1=`echo "$lim"|awk -F 0 '{print $1}'`
+   dfus=`df -h|grep -e "[$lim1-9][0-9]%"`
+   
+   dfhe=`df -h|head -n 1`
+   dfnum=`df -h|grep -e "[$lim1-9][0-9]%" |wc -l`
+   dufile=`du -h | sort -h -r | sed -n 1,11p`
+   dfut=`df -h|grep "ut" | awk '{print $5}' | awk -F % '{print $1}'`
+   df | awk '{if(($3/$2)*100 >= '$lim') {print $1","$2","$3","$4","$5","$6}}' > $check_log
+   i=0
+   n=`cat $check_log | wc -l `
+   if [ -n "$n" ];then
+   #to html
+      echo ""
+      echo "<table width=100% border=1>" >> $du_file 
+      echo "<tr><th colspan=7 style=background-color:#FFECC9>=====主機磁碟空間=====</th></tr>" >> $du_file
+      echo "<tr><th colspan=7 >磁碟空間大於<font color=red>$lim%</font></th></tr> " >> $du_file 
+      echo ""
+      while [ "$i" -le "$n" ];
+      do
+         if [ "$i" == 0 ] ; then
+            chk_name='Filesystem'
+            tbs_allocat='Size' 
+            tbs_free='Used'
+            tbs_use='Avail'
+            tbs_free_per='Use%'
+            tbs_use_per='Mounted on'
+            echo '<tr><td>' $chk_name '</td>' >>$du_file
+            echo '<td>' $tbs_allocat '</td>' >>$du_file
+            echo '<td>' $tbs_free '</td>' >>$du_file
+            echo '<td>' $tbs_use '</td>' >>$du_file
+            echo '<td>' $tbs_free_per '</td>' >>$du_file
+            echo '<td>' $tbs_use_per '</td>' >>$du_file
+         else
+            chk_name=`cat $check_log | awk -F , '{print $1}' | sed -n "${i},${i}p" `
+            tbs_allocat=`cat $check_log | awk -F , '{print $2}' | sed -n "${i},${i}p" `
+            tbs_free=`cat $check_log | awk -F , '{print $3}' | sed -n "${i},${i}p" `
+            tbs_use=`cat $check_log | awk -F , '{print $4}' | sed -n "${i},${i}p" `
+            tbs_free_per=`cat $check_log | awk -F , '{print $5}' | sed -n "${i},${i}p" `
+            tbs_use_per=`cat $check_log | awk -F , '{print $6}' | sed -n "${i},${i}p" `
+            echo '<tr><td>' $chk_name '</td>' >>$du_file
+            echo '<td>' $tbs_allocat '</td>' >>$du_file
+            echo '<td>' $tbs_free '</td>' >>$du_file
+            echo '<td>' $tbs_use '</td>' >>$du_file
+            echo '<td>' $tbs_free_per '</td>' >>$du_file
+            echo '<td>' $tbs_use_per '</td>' >>$du_file
+         fi
+         i=`expr $i + 1 `
+      done
+      echo "</table>" >> $du_file
+     
+      echo "<table width=100% border=1>" >> $du_file 
+      i=1
+      while [ $i -le $n ]
+        do
+            cd_and_du=`cat $check_log | awk -F , '{print $6}' | sed -n $i,${i}p`
+            du -h $cd_and_du 2>&1 | sort -h -r | sed -n '1,11p' > $check_log2 
+            echo "<tr><th colspan=7 style=background-color:#FFECC9>=====$cd_and_du=====</th></tr>" >> $du_file
+            echo "<tr><th colspan=7 >預估檔案大小前 10 名 ( 權限不足可能影響檢查 )</th></tr> " >> $du_file
+            i2=1
+            n2=`cat $check_log | wc -l`
+            while [ $i2 -le $n2 ]
+            do
+               dufile=`cat $check_log2 | awk '{print $1}' | sed -n "${i2},${i2}p"`
+               echo "<tr><td> $dufile </td>" >> $du_file
+               dufile=`cat $check_log2 | awk '{print $2}' | sed -n "${i2},${i2}p"`
+               echo "<td> $dufile </td></tr>" >> $du_file
+               i2=`expr $i2 + 1`
+            done
+            echo "==="
+            i=`expr $i + 1`
+        done
+      echo "</table>" >> $du_file
+      rh_500m_count=`find /ut -type f -size +500000k -iname 'sqllog.*.*.log' | wc -l`
+      rh_1hr_count=`find /ut -type f -iname 'sqllog.*.*.log' -amin +60 | wc -l`
+      if [ "$rh_500m_count" -gt "0" ] ; then
+         #v1 add (s)
+         chk_Warn="Y"
+         #v1 add (e)
+         echo "<b>===== r.h log 大於 500M 檔案 =====</b>" >> $du_file
+         find /ut -type f -size +500000k -iname 'sqllog.*.*.log' -exec ls -lh {} \; >> $du_file
+      elif [ "$rh_500m_count" -lt "1" ] ; then
+         if [ "$rh_1hr_count" -gt "0" ] ; then
+            #v1 add (s)
+            chk_Warn="Y"
+            #v1 add (e)
+            echo "<b>===== r.h log 大於 1hr 未持續使用檔案 =====</b>" >> $du_file
+            find /ut -type f -iname 'sqllog.*.*.log' -amin +60 -exec ls -lh {} \; >> $du_file
+         else
+            echo "<b>===== r.h log 還沒有大於 500M 或 1hr 未持續使用檔案 =====</b>" >> $du_file
+         fi
+      fi
+      
+      find . -type f -size +500000k -iname 'sqllog.*.*.log' -amin +60  -exec ls -l {} \; >> $du_file  # r.h log 大於 500 M
+   
+      # 硬碟 inode 空間 (s) 
+      
+      df -i | grep -v tmpfs | sed -n '2,$p' | awk '{if(($5) >= '$lim') {print $1","$2","$3","$4","$5","$6}}' > $check2_log
+      i=0
+      n=`df -i | grep -v tmpfs | sed -n '2,$p' | awk '{if(($5) >= '$lim') {print $1}}' | wc -l`
+      if [ "$n" -gt 0 ];then
+      #to html
+         echo ""
+         echo "<table width=100% border=1>" >> $du_file 
+         echo "<tr><th colspan=7 style=background-color:#FFECC9>=====主機磁碟 inode 空間=====</th></tr>" >> $du_file
+         echo "<tr><th colspan=7 >磁碟 inode 空間大於<font color=red>$lim%</font></th></tr> " >> $du_file 
+         echo ""
+         while [ "$i" -le "$n" ];
+         do
+            if [ "$i" == 0 ] ; then
+               chk_name='Filesystem'
+               tbs_allocat='Inodes' 
+               tbs_free='IUsed'
+               tbs_use='IFree'
+               tbs_free_per='IUse%'
+               tbs_use_per='Mounted on'
+               echo '<tr><td>' $chk_name '</td>' >>$du_file
+               echo '<td>' $tbs_allocat '</td>' >>$du_file
+               echo '<td>' $tbs_free '</td>' >>$du_file
+               echo '<td>' $tbs_use '</td>' >>$du_file
+               echo '<td>' $tbs_free_per '</td>' >>$du_file
+               echo '<td>' $tbs_use_per '</td>' >>$du_file
+            else
+               chk_name=`cat $check2_log | awk -F , '{print $1}' | sed -n "${i},${i}p" `
+               tbs_allocat=`cat $check2_log | awk -F , '{print $2}' | sed -n "${i},${i}p" `
+               tbs_free=`cat $check2_log | awk -F , '{print $3}' | sed -n "${i},${i}p" `
+               tbs_use=`cat $check2_log | awk -F , '{print $4}' | sed -n "${i},${i}p" `
+               tbs_free_per=`cat $check2_log | awk -F , '{print $5}' | sed -n "${i},${i}p" `
+               tbs_use_per=`cat $check2_log | awk -F , '{print $6}' | sed -n "${i},${i}p" `
+               echo '<tr><td>' $chk_name '</td>' >>$du_file
+               echo '<td>' $tbs_allocat '</td>' >>$du_file
+               echo '<td>' $tbs_free '</td>' >>$du_file
+               echo '<td>' $tbs_use '</td>' >>$du_file
+               echo '<td>' $tbs_free_per '</td>' >>$du_file
+               echo '<td>' $tbs_use_per '</td>' >>$du_file
+            fi
+            i=`expr $i + 1 `
+         done
+         echo "</table>" >> $du_file
+      else 
+         echo "<table width=100% border=1>" >> $du_file 
+         echo "<tr><th colspan=7 style=background-color:#FFECC9>=====主機磁碟 inode 空間=====</th></tr>" >> $du_file
+         echo "<tr><th colspan=7 >磁碟 inode 空間大於<font color=red>$lim%</font></th></tr> " >> $du_file 
+         echo "<tr><th colspan=7 > 沒有超過的區域 </th></tr> " >> $du_file
+         echo "</table>" >> $du_file
+
+      fi
+      #if [ "$dfut" -gt "$lim_warn" ];then
+      ##to html
+      #   #v1 add (s)
+      #   chk_Warn="Y"
+      #   echo "Warn" >> $chk_du
+      #   echo "chk_Warn : " $chk_Warn
+      #   #v1 add (e)
+      #   echo ""
+      #   echo "<b>=====主機暫存磁碟空間=====</b>"
+      #   echo ""
+      #   
+      #   echo "==磁碟空間大於<font color=red>$lim_warn %</font>=="
+      #   
+      #   echo "$dfhe"
+      #   echo  "$dfut"
+      #   
+      #   cd_and_du=`df -h|grep "ut" | awk '{print $6}'`
+      #   dufile=`du -h $cd_and_du | sort -h -r | sed -n 1,11p`
+      #   echo "==="
+      #   echo "$cd_and_du"
+      #   echo "=預估檔案大小前 10 名 ( 權限不足可能影響檢查 )"
+      #   echo "$dufile"
+      #   echo "==="
+      #fi
+   
+   fi
+
+fi
+
+#cat $du_file

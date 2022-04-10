@@ -1,0 +1,214 @@
+#!/bin/ksh 
+
+
+name=`tr -dc A-Za-z0-9_ < /dev/urandom | head -c 3 | xargs`
+export NAME=$name
+export MODE=check
+
+if [ "$TEMPDIR" == "" ] ; then
+   export TEMPDIR='/u1/etc/tmp'
+   if [ ! -d "/u1/etc/tmp" ] ; then
+      mkdir /u1/etc/tmp
+      chmod 777 /u1/etc/tmp
+   fi
+fi
+
+chk_dir='/u1/etc/chk_scripts'
+chk_dir_cpu=$chk_dir/cpu
+chk_dir_mem=$chk_dir/mem
+chk_dir_lock=$chk_dir/lock
+chk_dir_du="$chk_dir/du"
+chk_dir_tbs="$chk_dir/tbs"
+chk_dir_db_space=$chk_dir/db_space
+chk_dir_pro="$chk_dir/proces"
+chk_dir_io="$chk_dir/io"
+
+cd $chk_dir
+
+today=`date '+%d'`
+hour=`date '+%H'`
+min=`date '+%M'`
+
+ap_fgl=`timeout 10 ps -ef | grep -v grep | grep fglrun | wc -l`
+
+if [ `echo "$ap_fgl >= 1" |bc ` -eq 1 ] ; then 
+   export APCHK="Y"
+else
+   export APCHK="N"
+fi
+
+function fun_download {
+
+   filename=$1
+   if [ "$TEMPDIR" == "" ]; then
+      export TEMPDIR='/u1/etc/tmp'
+      echo "請下載 $TEMPDIR/${filename}.html"
+   else
+      $FGLRUN $chk_dir/download.42m ${filename}.html
+   fi
+
+}
+
+function fun_cpu {
+
+   echo "CPU 檢查 ..."
+   cd $chk_dir_cpu
+   sh cpu_chk.sh
+   sh cpu_chkhtml.sh
+   echo "CPU 檢查 ... ok"
+   #cp -p $chk_dir_cpu/cpu.html $TEMPDIR/cpu_$name.html
+
+}
+
+function fun_mem {
+
+   echo "記憶體 檢查 ..."
+   cd $chk_dir_mem
+   sh mem_chk.sh
+   sh mem_chkhtml.sh
+   echo "記憶體 檢查 ... ok"
+   #cp -p $chk_dir_mem/mem.html $TEMPDIR/mem_$name.html
+
+}
+ 
+function fun_lock {
+
+   echo "table lock 檢查 ..."
+   cd $chk_dir_lock
+   sh chk_lock
+   echo "table lock 檢查 ... ok"
+
+}
+
+function fun_du {
+
+   echo "DISK 空間 檢查 ..."
+   cd ../../$chk_dir_du
+   sh chk_du >> /dev/null
+   echo "DISK 空間 檢查 ... ok" 
+   #cp -p du.html $TEMPDIR/du.html
+
+}
+
+function fun_db_space {
+
+   echo "表空間 檢查 ..."
+   sh $chk_dir_tbs/chk_tbs >> /dev/null
+   cd $chk_dir_db_space
+   sh db_space_chk.sh
+   sh db_space_chkhtml.sh
+   echo "表空間 檢查 ... ok"
+   cat $TEMPDIR/tbs.html >> $TEMPDIR/du.html
+   #cp -p $chk_dir_db_space/db_space.html $TEMPDIR/db_space_${name}.html
+
+}
+
+function fun_pro {
+
+   echo "Process 總數量檢查 ..."
+   cd $chk_dir_pro
+   sh pro_chk.sh
+   sh pro_chkhtml.sh
+   echo "Process 總數量檢查 ... ok"
+   #cp -p $chk_dir_cpu/cpu.html $TEMPDIR/cpu_$name.html
+
+}
+
+function fun_io {
+
+   echo "IO 等待百分比檢查 ..."
+   cd $chk_dir_io
+   sh io_chk.sh
+   sh io_chkhtml.sh
+   echo "IO 等待百分比檢查 ... ok"
+   #cp -p $chk_dir_cpu/cpu.html $TEMPDIR/cpu_$name.html
+
+}
+
+export MODE_TEST="Y"
+
+if [ -z "$1" ] ; then
+   echo "簡易檢查項目 "
+   echo "1 . CPU 2. Mem 3. process 4. IO wait "
+
+   fun_cpu
+   fun_mem
+   fun_pro
+   fun_io
+   
+   #fun_lock
+
+   fun_download cpu_$name
+   fun_download mem_$name
+   fun_download pro_$name
+   fun_download io_$name
+   if [ "$APCHK" == "N" ]; then
+      fun_lock
+      fun_download lock
+   else
+      r.r adzp146
+   fi
+   
+else
+   if [ "$1" == "-v" ] ; then 
+      cat "/u1/etc/check.readme"
+      exit
+   fi
+   if [ "$1" == "tab" ] ; then
+      export MODE=""
+      cd /u1/etc/chk_scripts  #v1.02 add
+      sh clean_chk  #v1.02 add
+      fun_cpu
+      fun_mem
+      fun_io
+      fun_pro
+      fun_db_space
+      #預設每月的 01,15,25 號 12 : 00 收集 表空間 ( 月 ) (s)
+      for today in 01 15 
+      {
+         if [ "$hour" == 12 ] ; then
+            if [ "$min" == 00 ] ; then
+               /u1/etc/chk_scripts/db_space/db_space_chkm.sh
+            fi
+         fi
+      }
+      #預設每月的 01,15,25 號 12 : 00 收集 表空間 ( 月 ) (e)
+      exit
+   fi
+   if [ "$1" == "+" ] ; then 
+      echo "系統卡檢查"
+      fun_cpu
+      fun_mem
+      fun_io
+      fun_pro
+      fun_lock
+      fun_du
+      fun_db_space
+
+      fun_download cpu_$name
+      fun_download mem_$name
+      fun_download io_$name
+      fun_download lock
+      fun_download 'du'
+      fun_download db_space_$name
+      exit
+   fi
+   if [ "$1" == "all" ] ; then
+      echo "全項目檢查"
+      sh tmon manu tes 2> /dev/null
+      exit
+   fi
+   if [ "$1" == "cpu" ] ; then
+      echo "檢查 CPU "
+      fun_cpu
+      fun_download cpu_$name
+      exit
+   fi
+   if [ "$1" == "pro" ] ; then
+      echo "檢查 Process "
+      fun_pro
+      fun_download pro_$name
+      exit
+   fi
+
+fi

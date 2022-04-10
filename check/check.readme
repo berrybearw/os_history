@@ -1,0 +1,19 @@
+
+check 版本
+v1.0  : 第一版
+v1.01 : 新增 proces 檢查 系統有多少 process
+v1.02 : 新增 清理 檢查後 log
+v1.03 : 新增 檢查 process 數 與 DB 環境部署方式
+
+
+記得用 GDC
+預設會用瀏覽器提供使用者檢查
+推薦   chrome , newedge
+
+check     : 簡易              ===> 1.CPU 2.Mem 3.lock table 4.process
+check +   : 系統卡            ===> 1.CPU 2.Mem 3.lock table 4.DISK 空間 5.DB 表空間
+check all : 全項目檢查
+check cpu : 檢查 CPU          ===> 1.CPU
+
+簡易   : 1.CPU 2.Mem 3.lock table 
+系統卡 : 1.CPU 2.Mem 3.lock table 4.DISK 空間 5.DB 表空間

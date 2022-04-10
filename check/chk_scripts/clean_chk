@@ -1,0 +1,64 @@
+#!/bin/ksh
+
+chk_clean='7'
+date_time=`date '+%s'`
+date_dir=`date +%Y%m%d --date="-$chk_clean day"`
+
+lim=604800
+
+function clean_function {
+   cd $chk_dir
+   if [ "$3" == "chk" ] ; then
+      lim=300
+      cd $chk_dir/chk
+      du -a --time --time-style='+%s' `find ./ 2>/dev/null` | 
+      awk -v MAX=$date_time '{sec=(MAX-$2); print $3 " " sec}' |
+      awk -v MAX=$lim '{if(MAX<$2) {print $1}}' | xargs rm -rf 2>/dev/null
+   else
+      cd $chk_dir
+      du -a --time --time-style='+%s' `find ./ 2>/dev/null` | grep -Ev "(${2})" |
+      awk -v MAX=$date_time '{sec=(MAX-$2); print $3 " " sec}' |
+      awk -v MAX=$lim '{if(MAX<$2) {print $1}}' | xargs rm -rf 2>/dev/null
+      dir_chk=`find ./ -maxdepth 1 -type d | awk -F ./ '{print $2}'`
+      for i in $dir_chk
+      do
+        chk_1=`date -d "$date_dir" +%s`
+        chk_2=`date -d "$i" +%s 2>/dev/null`
+        if [ `echo "$chk_2 > 0" | bc ` -eq 1 ] ; then
+           if [ `echo "$chk_2 < $chk_1" | bc ` -eq 1 ] ; then
+              rm -rf $i
+           fi
+        fi
+      done
+      
+   fi
+}
+
+proc_not="chk|cpu_chk.conf|cpu_chkhtml.sh|cpu_chk.sh"
+
+chk_dir='/u1/etc/chk_scripts/cpu'
+
+#找出指定時間目錄 清理
+#find $chk_dir/* -mtime +$chk_clean -print0 | xargs -0 -l1 -t rm -rf
+clean_function $chk_dir $proc_not
+clean_function $chk_dir $proc_not "chk"
+
+proc_not="chk|mem_chk.conf|mem_chkhtml.sh|mem_chk.sh"
+
+chk_dir='/u1/etc/chk_scripts/mem'
+
+#find $chk_dir/* -mtime +$chk_clean -print0 | xargs -0 -l1 -t rm -rf
+clean_function $chk_dir $proc_not 
+clean_function $chk_dir $proc_not "chk"
+
+proc_not="chk|pro_chk.conf|pro_chkhtml.sh|pro_chk.sh"
+
+chk_dir='/u1/etc/chk_scripts/proces'
+
+#find $chk_dir/* -mtime +$chk_clean -print0 | xargs -0 -l1 -t rm -rf
+clean_function $chk_dir $proc_not 
+clean_function $chk_dir $proc_not "chk"
+
+chk_dir='/u1/etc/chk_scripts/db_space/day'
+
+find $chk_dir/* -mtime +$chk_clean -print0 | xargs -0 -l1 rm -rf

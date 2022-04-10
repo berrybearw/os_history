@@ -1,0 +1,14 @@
+topprd           DSAPSBAK                  NO              1       1024        27       997     3    97
+topprd           DSAUDT                    YES             1       4096         4      4092     0   100
+topprd           DSAWS                     YES             1       4096      1230      2866    30    70
+topprd           DSBLOB                    NO              2       8192      2820      5372    34    66
+topprd           DSCTRF                    YES             1        512         5       507     1    99
+topprd           DSDATA                    NO              3      12288      8851      3437    72    28
+topprd           DSREPT                    NO              1       4096         1      4095     0   100
+topprd           PERFSTAT                  NO              1       2048       155      1893     8    92
+topprd           SYSAUX                    YES             1       3020      2697       323    89    11
+topprd           SYSTEM                    YES             1        830       825         5    99     1
+topprd           TEMP                      YES             1       8192         0      8192     0   100
+topprd           TEMPTABS                  NO              1       4096       510      3586    12    88
+topprd           UNDOTBS1                  YES             1      28672        30     28642     0   100
+topprd           USERS                     YES             1          5         1         4    20    80

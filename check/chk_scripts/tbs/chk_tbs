@@ -1,0 +1,170 @@
+#!/bin/ksh
+
+#v1 check 順序 No.09
+
+log_dir='/u1/etc/chk_scripts/tbs'
+
+. /u1/etc/chk_scripts/tmon.conf
+
+ls_version="1.0"
+
+mode_test="Y"
+
+if [ "$mode_test" == "Y" ] ;then
+   chk_tbs_time_go="Y"
+fi
+
+if [ "$chk_tbs_time_go" == "Y" ] ;then
+
+   if [ -n "$1" ];then
+      unset SQLPATH
+      unset ORACLE_PATH
+      export ZONE=$1
+   if [ -z "$sqlpass" ];then
+   if [ -z "$2" ];then
+      export sqlpass=du
+   else
+      export sqlpass=$2    	
+   fi
+   fi
+   fi
+   chk_logdir="$log_dir/basement"
+   tbs_file="$log_dir/tbs.log"
+   
+   #echo "=====表格空間使用率====="
+   if [ -z "$tbs" ];then
+
+      sql=$(
+            echo "
+              set colsep ' '     -- separate columns with a comma
+              set pagesize 0   -- No header rows
+              set trimspool on -- remove trailing blanks
+              set headsep off  -- this may or may not be useful...depends on your headings.
+              set linesize 200   -- X should be the sum of the column widths
+              
+              spool ${chk_logdir}/q_out.log
+              --SQL(s)
+              select 
+                 a.tablespace_name as \"Tablespace)Name\",
+                 round(a.bytes_alloc/1024)\"Allocated (MB)\",
+                 round(nvl(b.bytes_free, 0)/1024)\"Free (MB)\",
+                 round((a.bytes_alloc - nvl(b.bytes_free, 0)) /1024 )\"Used (MB)\",
+                 round((nvl(b. bytes_free,0)/ a.bytes_alloc) *100) \"% Free\",
+                 100 - round((nvl(b.bytes_free, 0) / a.bytes_alloc) *100) \"% Used\",
+                 round(maxbytes /1024)\"Max. Bytes (MB) \"
+                 from (select f.tablespace_name,
+                 sum(f.bytes) bytes_alloc,
+                 sum(decode(f.autoextensible, 'YES',f.maxbytes,'NO',f.bytes)) maxbytes
+              from dba_data_files f
+              group by tablespace_name) a,
+              (select f.tablespace_name,
+              sum(f.bytes) bytes_free
+              from dba_free_space f
+              group by tablespace_name) b
+              where a.tablespace_name = b.tablespace_name (+)
+              union all
+              select
+                 h.tablespace_name as \"Tablespace)Name\",
+                 round(sum(h.bytes_free + h.bytes_used) /1024 ) megs_alloc,
+                 round(sum((h.bytes_free + h.bytes_used) - nvl(p.bytes_used,0)) /1024 ) megs_free,
+                 round(sum(nvl(p.bytes_used, 0)) /1024) megs_used,
+                 round((sum((h.bytes_free + h.bytes_used) -nvl(p.bytes_used, 0))/ sum(h.bytes_used + h.bytes_free)) * 100) Pct_Free,
+                 100 -round((sum((h.bytes_free + h.bytes_used) -nvl(p.bytes_used, 0))/ sum(h.bytes_used + h.bytes_free)) * 100) pct_used,
+                 round(sum(f.maxbytes) /1024 ) max
+              from sys.v_\$TEMP_SPACE_HEADER h,
+              sys.v_\$temp_extent_pool p,
+              dba_temp_files f
+              where p.file_id(+)= h.file_id
+              and p.tablespace_name(+)=h.tablespace_name
+              and f.file_id = h.file_id
+              and f.tablespace_name = h.tablespace_name
+              group by h.tablespace_name ;
+              --SQL(e)
+              SPOOL OFF
+              EXIT
+      
+              " | sqlplus -S "du/du@$ZONE"
+              )
+
+   fi
+
+   i=0
+   #判斷是否大於lim設定值
+   tbs_ov=`cat $chk_logdir/q_out.log |awk '{if($6 >= '$lim') {print $6}}'|grep -Eo "[0-9]+"`
+   n=`cat $chk_logdir/q_out.log |awk '{if($6 >= '$lim') {print $6}}'|grep -Eo "[0-9]+" | wc -l`
+
+   if [ -n "$tbs_ov" ];then
+      chk_Warn="Y"
+      echo "chk_Warn : " $chk_Warn
+      echo "<table width=800 border=1>
+      <tr>
+      <th colspan=7 style="background-color:#FFECC9">表空間使用率</th>
+      </tr>
+      <tr>
+      <td colspan=7 align="center" valign="middle">NOW!! T100 DB tablespace use over <font color=red>$lim %</font></td>
+      </tr>
+      <tr>
+      <td colspan=7 align="center" valign="middle">=== TABLESPACE ===</td>
+      </tr>" > $tbs_file
+      check_log="cat $chk_logdir/q_out.log"
+      while [ "$i" -le "$n" ];
+      do
+         if [ "$i" == 0 ] ; then
+            chk_name='TABLESPACE_NAME'
+            tbs_allocat='ALLOCATED ( MB )' 
+            tbs_free='FREE ( MB )'
+            tbs_use='USE ( MB )'
+            tbs_free_per='FREE %'
+            tbs_use_per='USE %'
+            tbs_max='MAX ( MB )'
+   	    echo '<tr><td>' $chk_name '</td>' >>$tbs_file
+   	    echo '<td>' $tbs_allocat '</td>' >>$tbs_file
+   	    echo '<td>' $tbs_free '</td>' >>$tbs_file
+   	    echo '<td>' $tbs_use '</td>' >>$tbs_file
+   	    echo '<td>' $tbs_free_per '</td>' >>$tbs_file
+   	    echo '<td>' $tbs_use_per '</td>' >>$tbs_file
+   	    echo '<td>' $tbs_max '</td></tr>' >>$tbs_file
+         else
+            chk_name=`$check_log |awk '{if($6 >= '$lim') {print $1}}' | sed -n "${i},${i}p" `
+            tbs_allocat=`$check_log | grep $chk_name | awk '{print $2}'`
+            tbs_allocat=`expr $tbs_allocat / 1024 `
+            tbs_free=`$check_log | grep $chk_name | awk '{print $3}'`
+            tbs_free=`expr $tbs_free / 1024 `
+            tbs_use=`$check_log | grep $chk_name | awk '{print $4}'`
+            tbs_use=`expr $tbs_use / 1024 `
+            tbs_free_per=`$check_log |grep $chk_name | awk '{print $5}'`
+            tbs_use_per=`$check_log |grep $chk_name | awk '{print $6}'`
+            tbs_max=`$check_log |grep $chk_name | awk '{print $7}'`
+            tbs_max=`expr $tbs_max / 1024 `
+   	    echo '<tr><td>' $chk_name '</td>' >>$tbs_file
+   	    echo '<td>' $tbs_allocat '</td>' >>$tbs_file
+   	    echo '<td>' $tbs_free '</td>' >>$tbs_file
+   	    echo '<td>' $tbs_use '</td>' >>$tbs_file
+   	    echo '<td>' $tbs_free_per '</td>' >>$tbs_file
+   	    echo '<td>' $tbs_use_per '</td>' >>$tbs_file
+   	    echo '<td>' $tbs_max '</td></tr>' >>$tbs_file
+         fi
+         i=`expr $i + 1 `
+      done
+      echo "</table>" >> $tbs_file
+      cp -p $tbs_file $TEMPDIR/tbs.html
+      cat $tbs_file
+      rm -rf $log_dir/tbs.log
+   fi
+
+fi
+#將值傳進tmp file
+
+
+#if [ -n "$tbs_ov" ];then
+#	echo "<b>=====表格空間使用率=====</b>"
+#	#echo -n "<pre>" > $alert_file
+#	#echo "<font color=blue>==== "$today"  ====</font>" >> $alert_file
+#	#echo "<font color=red>====      WARNING!!!     ====</font>" >> $alert_file
+#	echo "NOW!! T100 DB tablespace use over <font color=red>$lim %</font>"
+#	echo "=== TABLESPACE ==="
+#	echo "$tbs"
+#	echo ""
+#	echo ""
+#	echo "================================================================"
+#fi

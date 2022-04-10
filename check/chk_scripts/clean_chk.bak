@@ -1,0 +1,21 @@
+#!/bin/ksh
+
+
+chk_clean='7'
+
+chk_dir='/u1/etc/chk_scripts/cpu/bak_date'
+
+#找出指定時間目錄 清理
+find $chk_dir/* -mtime +$chk_clean -print0 | xargs -0 -l1 -t rm -rf
+
+chk_dir='/u1/etc/chk_scripts/mem/bak_date'
+
+find $chk_dir/* -mtime +$chk_clean -print0 | xargs -0 -l1 -t rm -rf
+
+chk_dir='/u1/etc/chk_scripts/proces/bak_date'
+
+find $chk_dir/* -mtime +$chk_clean -print0 | xargs -0 -l1 -t rm -rf
+
+chk_dir='/u1/etc/chk_scripts/db_space/day'
+
+find $chk_dir/* -mtime +$chk_clean -print0 | xargs -0 -l1 -t rm -rf
