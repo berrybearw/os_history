@@ -15,3 +15,5 @@ IO            | io_chk        |
 紀錄          | 程序           |
 ------------- |:-------------:|
 tablespace    | tbs_chk
+
+![image](https://user-images.githubusercontent.com/96226780/230304963-37efad6b-6278-4059-aee2-e652dbceec15.png)
